@@ -1,0 +1,30 @@
+# General
+.DS_Store
+*.log
+.env
+.env.*.local
+.env.local
+
+# Frontend (Vite + React)
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/coverage/
+
+# Backend (covering Node, Python, etc.)
+backend/node_modules/
+backend/dist/
+backend/build/
+backend/coverage/
+backend/__pycache__/
+backend/venv/
+backend/.venv/
+backend/*.sqlite3
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
