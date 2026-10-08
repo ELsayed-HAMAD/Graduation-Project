@@ -1,0 +1,15 @@
+// Prisma schema — see docs/backend-folder-structure.md (prisma/ section).
+// The connection URL lives in prisma.config.ts (Prisma 7), not here.
+
+generator client {
+  provider             = "prisma-client"
+  output               = "../src/generated/prisma"
+  moduleFormat         = "cjs"
+  importFileExtension  = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Add models here, then run `npm run prisma:migrate`.
