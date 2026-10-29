@@ -6,3 +6,7 @@ import type { prisma } from "@/lib/prisma"
  * can run it inside `prisma.$transaction(async (tx) => ...)`.
  */
 export type Db = Prisma.TransactionClient | typeof prisma
+
+/** True for Prisma's unique-constraint violation (P2002), so services can map it to a 409. */
+export const isUniqueViolation = (err: unknown): boolean =>
+  typeof err === "object" && err !== null && "code" in err && err.code === "P2002"

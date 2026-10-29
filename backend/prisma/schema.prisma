@@ -12,4 +12,541 @@ datasource db {
   provider = "postgresql"
 }
 
-// Add models here, then run `npm run prisma:migrate`.
+
+enum UserRole {
+  LEARNER
+  PARENT
+  TEACHER
+  DOCTOR
+ 
+  @@map("user_role")
+}
+ 
+enum AccountStatus {
+  INACTIVE
+  ACTIVE
+ 
+  @@map("account_status")
+}
+ 
+enum SpecialistType {
+  TEACHER
+  DOCTOR
+ 
+  @@map("specialist_type")
+}
+ 
+enum LinkStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+ 
+  @@map("link_status")
+}
+ 
+enum DecisionType {
+  CONTINUE
+  SCAFFOLD
+  BREAK
+  SIMPLIFY
+ 
+  @@map("decision_type")
+}
+ 
+enum FrictionLevel {
+  LOW
+  MEDIUM
+  HIGH
+ 
+  @@map("friction_level")
+}
+ 
+enum PlanStatus {
+  PROPOSED
+  ACTIVE
+  SUPERSEDED
+  REJECTED
+ 
+  @@map("plan_status")
+}
+ 
+enum ApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+ 
+  @@map("approval_decision")
+}
+ 
+enum RedirectDecision {
+  PENDING
+  KEPT
+  UNDONE
+ 
+  @@map("redirect_decision")
+}
+ 
+/// Accounts & Consent
+model User {
+  userId        String         @id @default(dbgenerated("gen_random_uuid()")) @map("user_id") @db.Uuid
+  clerkUserId   String?        @unique @map("clerk_user_id") @db.VarChar // set for accounts that sign in through Clerk (Google / Apple)
+  role          UserRole
+  passwordHash  String?        @map("password_hash") @db.VarChar // NULL for Clerk (OAuth) accounts
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  parent        Parent?
+  learner       Learner?
+  specialist    Specialist?
+  planApprovals PlanApproval[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+ 
+  @@map("users")
+}
+ 
+/// Accounts & Consent
+model Parent {
+  userId          String           @id @map("user_id") @db.Uuid
+  email           String           @unique @db.VarChar
+  isEmailVerified Boolean          @map("is_email_verified")
+  mfaEnabled      Boolean          @map("mfa_enabled")
+  user            User             @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  learners        Learner[]
+  consents        Consent[]
+  specialistLinks SpecialistLink[]
+  surveyResponses SurveyResponse[]
+ 
+  @@map("parents")
+}
+ 
+/// Accounts & Consent
+model Learner {
+  userId             String              @id @map("user_id") @db.Uuid
+  parentId           String              @map("parent_id") @db.Uuid
+  username           String              @unique @db.VarChar
+  displayName        String              @map("display_name") @db.VarChar
+  gradeLevel         Int?                @map("grade_level") @db.SmallInt
+  status             AccountStatus
+  user               User                @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  parent             Parent              @relation(fields: [parentId], references: [userId], onDelete: NoAction)
+  consents           Consent[]
+  specialistLinks    SpecialistLink[]
+  surveyResponses    SurveyResponse[]
+  baselineAssessment BaselineAssessment?
+  learningSessions   LearningSession[]
+  studentModel       StudentModel?
+  learningPlans      LearningPlan[]
+  gameProfile        GameProfile?
+ 
+  @@map("learners")
+}
+ 
+/// Accounts & Consent
+model Specialist {
+  userId          String           @id @map("user_id") @db.Uuid
+  specialistType  SpecialistType   @map("specialist_type")
+  email           String           @unique @db.VarChar
+  organization    String?          @db.VarChar
+  user            User             @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  teacher         Teacher?
+  doctor          Doctor?
+  specialistLinks SpecialistLink[]
+  redirects       Redirect[]
+ 
+  @@map("specialists")
+}
+ 
+/// Accounts & Consent
+model Teacher {
+  userId     String     @id @map("user_id") @db.Uuid
+  school     String?    @db.VarChar
+  subject    String?    @db.VarChar
+  specialist Specialist @relation(fields: [userId], references: [userId], onDelete: Cascade)
+ 
+  @@map("teachers")
+}
+ 
+/// Accounts & Consent
+model Doctor {
+  userId        String     @id @map("user_id") @db.Uuid
+  licenseNumber String     @unique @map("license_number") @db.VarChar
+  clinic        String?    @db.VarChar
+  specialty     String?    @db.VarChar
+  specialist    Specialist @relation(fields: [userId], references: [userId], onDelete: Cascade)
+ 
+  @@map("doctors")
+}
+ 
+/// Accounts & Consent
+model Consent {
+  consentId     String    @id @default(dbgenerated("gen_random_uuid()")) @map("consent_id") @db.Uuid
+  learnerId     String    @map("learner_id") @db.Uuid
+  parentId      String    @map("parent_id") @db.Uuid
+  noticeVersion String    @map("notice_version") @db.VarChar
+  givenAt       DateTime  @default(now()) @map("given_at") @db.Timestamptz(6)
+  withdrawnAt   DateTime? @map("withdrawn_at") @db.Timestamptz(6) // NULL = still valid
+  learner       Learner   @relation(fields: [learnerId], references: [userId], onDelete: Cascade)
+  parent        Parent    @relation(fields: [parentId], references: [userId], onDelete: NoAction)
+ 
+  @@map("consents")
+}
+ 
+/// Accounts & Consent
+model SpecialistLink {
+  linkId       String      @id @default(dbgenerated("gen_random_uuid()")) @map("link_id") @db.Uuid
+  parentId     String      @map("parent_id") @db.Uuid
+  learnerId    String      @map("learner_id") @db.Uuid
+  specialistId String?     @map("specialist_id") @db.Uuid
+  inviteEmail  String      @map("invite_email") @db.VarChar
+  inviteCode   String      @unique @map("invite_code") @db.VarChar
+  status       LinkStatus
+  invitedAt    DateTime    @default(now()) @map("invited_at") @db.Timestamptz(6)
+  linkedAt     DateTime?   @map("linked_at") @db.Timestamptz(6)
+  revokedAt    DateTime?   @map("revoked_at") @db.Timestamptz(6)
+  parent       Parent      @relation(fields: [parentId], references: [userId], onDelete: NoAction)
+  learner      Learner     @relation(fields: [learnerId], references: [userId], onDelete: Cascade)
+  specialist   Specialist? @relation(fields: [specialistId], references: [userId], onDelete: Cascade)
+ 
+  @@map("specialist_links")
+}
+ 
+/// Onboarding Survey
+model Survey {
+  surveyId        String           @id @default(dbgenerated("gen_random_uuid()")) @map("survey_id") @db.Uuid
+  version         Int
+  audience        UserRole
+  questions       Question[]
+  surveyResponses SurveyResponse[]
+ 
+  @@map("surveys")
+}
+ 
+/// Onboarding Survey
+model Question {
+  questionId  String @id @default(dbgenerated("gen_random_uuid()")) @map("question_id") @db.Uuid
+  surveyId    String @map("survey_id") @db.Uuid
+  text        String
+  type        String @db.VarChar
+  routingRule Json?  @map("routing_rule")
+  sortOrder   Int    @map("sort_order")
+  survey      Survey @relation(fields: [surveyId], references: [surveyId], onDelete: Cascade)
+ 
+  @@map("questions")
+}
+ 
+/// Onboarding Survey
+model SurveyResponse {
+  responseId    String         @id @default(dbgenerated("gen_random_uuid()")) @map("response_id") @db.Uuid
+  surveyId      String         @map("survey_id") @db.Uuid
+  learnerId     String         @map("learner_id") @db.Uuid
+  parentId      String         @map("parent_id") @db.Uuid
+  answers       Json
+  score         Float?         @db.Real
+  submittedAt   DateTime?      @map("submitted_at") @db.Timestamptz(6)
+  survey        Survey         @relation(fields: [surveyId], references: [surveyId], onDelete: Cascade)
+  learner       Learner        @relation(fields: [learnerId], references: [userId], onDelete: Cascade)
+  parent        Parent         @relation(fields: [parentId], references: [userId], onDelete: NoAction)
+  learningPlans LearningPlan[]
+ 
+  @@map("survey_responses")
+}
+ 
+/// Onboarding Survey
+model BaselineAssessment {
+  assessmentId String    @id @default(dbgenerated("gen_random_uuid()")) @map("assessment_id") @db.Uuid
+  learnerId    String    @unique @map("learner_id") @db.Uuid
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  learner      Learner   @relation(fields: [learnerId], references: [userId], onDelete: Cascade)
+ 
+  @@map("baseline_assessments")
+}
+ 
+/// Learning Content
+model Subject {
+  subjectId  String   @id @default(dbgenerated("gen_random_uuid()")) @map("subject_id") @db.Uuid
+  name       String   @db.VarChar
+  gradeLevel Int      @map("grade_level") @db.SmallInt
+  skills     Skill[]
+  lessons    Lesson[]
+ 
+  @@map("subjects")
+}
+ 
+/// Learning Content
+model Skill {
+  skillId        String          @id @default(dbgenerated("gen_random_uuid()")) @map("skill_id") @db.Uuid
+  subjectId      String          @map("subject_id") @db.Uuid
+  name           String          @db.VarChar
+  objective      String?
+  subject        Subject         @relation(fields: [subjectId], references: [subjectId], onDelete: Cascade)
+  activitySkills ActivitySkill[]
+  skillMasteries SkillMastery[]
+ 
+  @@map("skills")
+}
+ 
+/// Learning Content
+model Lesson {
+  lessonId   String     @id @default(dbgenerated("gen_random_uuid()")) @map("lesson_id") @db.Uuid
+  subjectId  String     @map("subject_id") @db.Uuid
+  title      String     @db.VarChar
+  sortOrder  Int        @map("sort_order")
+  subject    Subject    @relation(fields: [subjectId], references: [subjectId], onDelete: Cascade)
+  activities Activity[]
+ 
+  @@map("lessons")
+}
+ 
+/// Learning Content
+model Activity {
+  activityId       String            @id @default(dbgenerated("gen_random_uuid()")) @map("activity_id") @db.Uuid
+  lessonId         String            @map("lesson_id") @db.Uuid
+  type             String            @db.VarChar
+  xpReward         Int               @map("xp_reward")
+  lesson           Lesson            @relation(fields: [lessonId], references: [lessonId], onDelete: Cascade)
+  activitySkills   ActivitySkill[]
+  steps            Step[]
+  learningSessions LearningSession[]
+ 
+  @@map("activities")
+}
+ 
+/// Learning Content
+model ActivitySkill {
+  activityId String   @map("activity_id") @db.Uuid
+  skillId    String   @map("skill_id") @db.Uuid
+  activity   Activity @relation(fields: [activityId], references: [activityId], onDelete: Cascade)
+  skill      Skill    @relation(fields: [skillId], references: [skillId], onDelete: NoAction)
+ 
+  @@id([activityId, skillId])
+  @@map("activity_skills")
+}
+ 
+/// Learning Content
+model Step {
+  stepId        String    @id @default(dbgenerated("gen_random_uuid()")) @map("step_id") @db.Uuid
+  activityId    String    @map("activity_id") @db.Uuid
+  prompt        String
+  correctAnswer String?   @map("correct_answer")
+  sortOrder     Int       @map("sort_order")
+  activity      Activity  @relation(fields: [activityId], references: [activityId], onDelete: Cascade)
+  attempts      Attempt[]
+ 
+  @@map("steps")
+}
+ 
+/// Learning & Adaptation
+model LearningSession {
+  sessionId           String               @id @default(dbgenerated("gen_random_uuid()")) @map("session_id") @db.Uuid
+  learnerId           String               @map("learner_id") @db.Uuid
+  activityId          String               @map("activity_id") @db.Uuid
+  startedAt           DateTime             @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt             DateTime?            @map("ended_at") @db.Timestamptz(6)
+  currentStep         Int                  @map("current_step")
+  interventionCount   Int?                 @map("intervention_count") @db.SmallInt // CHECK (<= 3) is in the SQL migration
+  learner             Learner              @relation(fields: [learnerId], references: [userId], onDelete: Cascade)
+  activity            Activity             @relation(fields: [activityId], references: [activityId], onDelete: Cascade)
+  attempts            Attempt[]
+  adaptationDecisions AdaptationDecision[]
+ 
+  @@map("learning_sessions")
+}
+ 
+/// Learning & Adaptation
+model Attempt {
+  attemptId      String          @id @default(dbgenerated("gen_random_uuid()")) @map("attempt_id") @db.Uuid
+  sessionId      String          @map("session_id") @db.Uuid
+  stepId         String          @map("step_id") @db.Uuid
+  answer         String?
+  isCorrect      Boolean?        @map("is_correct")
+  responseTimeMs Int?            @map("response_time_ms")
+  tries          Int             @db.SmallInt
+  omitted        Boolean
+  idempotencyKey String          @unique @map("idempotency_key") @db.VarChar
+  session        LearningSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  step           Step            @relation(fields: [stepId], references: [stepId], onDelete: NoAction)
+  feedback       Feedback?
+ 
+  @@map("attempts")
+}
+ 
+/// Learning & Adaptation
+model Feedback {
+  feedbackId String  @id @default(dbgenerated("gen_random_uuid()")) @map("feedback_id") @db.Uuid
+  attemptId  String  @unique @map("attempt_id") @db.Uuid
+  message    String
+  isPositive Boolean @map("is_positive")
+  attempt    Attempt @relation(fields: [attemptId], references: [attemptId], onDelete: Cascade)
+ 
+  @@map("feedback")
+}
+ 
+/// Learning & Adaptation
+model StudentModel {
+  learnerId           String         @id @map("learner_id") @db.Uuid
+  academicMastery     Json?          @map("academic_mastery")
+  interactionBehavior Json?          @map("interaction_behavior")
+  learningContext     Json?          @map("learning_context")
+  strategyHistory     Json?          @map("strategy_history")
+  supportPreferences  Json?          @map("support_preferences")
+  dataConfidence      Float?         @map("data_confidence") @db.Real
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  learner             Learner        @relation(fields: [learnerId], references: [userId], onDelete: Cascade)
+  skillMasteries      SkillMastery[]
+ 
+  @@map("student_models")
+}
+ 
+/// Learning & Adaptation
+model SkillMastery {
+  learnerId String       @map("learner_id") @db.Uuid
+  skillId   String       @map("skill_id") @db.Uuid
+  pKnown    Float?       @map("p_known") @db.Real // BKT, 0..1
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  learner   StudentModel @relation(fields: [learnerId], references: [learnerId], onDelete: Cascade)
+  skill     Skill        @relation(fields: [skillId], references: [skillId], onDelete: NoAction)
+ 
+  @@id([learnerId, skillId])
+  @@map("skill_masteries")
+}
+ 
+/// Learning & Adaptation
+model AdaptationDecision {
+  decisionId  String          @id @default(dbgenerated("gen_random_uuid()")) @map("decision_id") @db.Uuid
+  sessionId   String          @map("session_id") @db.Uuid
+  type        DecisionType
+  friction    FrictionLevel
+  reason      String?
+  ruleVersion String          @map("rule_version") @db.VarChar
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  session     LearningSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+ 
+  @@map("adaptation_decisions")
+}
+ 
+/// Learning Plan
+model LearningPlan {
+  planId           String          @id @default(dbgenerated("gen_random_uuid()")) @map("plan_id") @db.Uuid
+  learnerId        String          @map("learner_id") @db.Uuid
+  sourceResponseId String?         @map("source_response_id") @db.Uuid // survey_responses (AI input)
+  version          Int
+  strategies       Json?
+  focusTopics      Json?           @map("focus_topics")
+  rationale        String?
+  status           PlanStatus
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  learner          Learner         @relation(fields: [learnerId], references: [userId], onDelete: Cascade)
+  sourceResponse   SurveyResponse? @relation(fields: [sourceResponseId], references: [responseId], onDelete: NoAction)
+  planApprovals    PlanApproval[]
+  redirects        Redirect[]
+ 
+  @@map("learning_plans")
+}
+ 
+/// Learning Plan
+model PlanApproval {
+  approvalId   String           @id @default(dbgenerated("gen_random_uuid()")) @map("approval_id") @db.Uuid
+  planId       String           @map("plan_id") @db.Uuid
+  approverId   String           @map("approver_id") @db.Uuid // users NOT NULL (parent or specialist)
+  approverRole UserRole         @map("approver_role")
+  decision     ApprovalDecision
+  comment      String?
+  decidedAt    DateTime?        @map("decided_at") @db.Timestamptz(6)
+  plan         LearningPlan     @relation(fields: [planId], references: [planId], onDelete: Cascade)
+  approver     User             @relation(fields: [approverId], references: [userId], onDelete: NoAction)
+ 
+  @@unique([planId, approverRole], map: "one_approval_per_role")
+  @@map("plan_approvals")
+}
+ 
+/// Learning Plan
+model Redirect {
+  redirectId       String           @id @default(dbgenerated("gen_random_uuid()")) @map("redirect_id") @db.Uuid
+  planId           String           @map("plan_id") @db.Uuid
+  specialistId     String           @map("specialist_id") @db.Uuid
+  restrictedTopics Json             @map("restricted_topics")
+  parentDecision   RedirectDecision @map("parent_decision")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  plan             LearningPlan     @relation(fields: [planId], references: [planId], onDelete: Cascade)
+  specialist       Specialist       @relation(fields: [specialistId], references: [userId], onDelete: Cascade)
+ 
+  @@map("redirects")
+}
+ 
+/// Gamification
+model League {
+  leagueId     String        @id @default(dbgenerated("gen_random_uuid()")) @map("league_id") @db.Uuid
+  name         String        @db.VarChar
+  weekStart    DateTime      @map("week_start") @db.Date
+  gameProfiles GameProfile[]
+ 
+  @@map("leagues")
+}
+ 
+/// Gamification
+model GameProfile {
+  learnerId          String        @id @map("learner_id") @db.Uuid
+  leagueId           String?       @map("league_id") @db.Uuid
+  xp                 Int
+  level              Int
+  coins              Int
+  streakDays         Int           @map("streak_days")
+  pseudonym          String        @unique @db.VarChar
+  leaderboardEnabled Boolean       @map("leaderboard_enabled") // set by parent
+  learner            Learner       @relation(fields: [learnerId], references: [userId], onDelete: Cascade)
+  league             League?       @relation(fields: [leagueId], references: [leagueId], onDelete: NoAction)
+  earnedBadges       EarnedBadge[]
+ 
+  @@map("game_profiles")
+}
+ 
+/// Gamification
+model Badge {
+  badgeId      String        @id @default(dbgenerated("gen_random_uuid()")) @map("badge_id") @db.Uuid
+  name         String        @unique @db.VarChar
+  criteria     Json
+  earnedBadges EarnedBadge[]
+ 
+  @@map("badges")
+}
+ 
+/// Gamification
+model EarnedBadge {
+  learnerId String      @map("learner_id") @db.Uuid
+  badgeId   String      @map("badge_id") @db.Uuid
+  earnedAt  DateTime    @default(now()) @map("earned_at") @db.Timestamptz(6)
+  learner   GameProfile @relation(fields: [learnerId], references: [learnerId], onDelete: Cascade)
+  badge     Badge       @relation(fields: [badgeId], references: [badgeId], onDelete: NoAction)
+ 
+  @@id([learnerId, badgeId])
+  @@map("earned_badges")
+}
+ 
+/// Notifications & Audit
+model Notification {
+  notificationId String   @id @default(dbgenerated("gen_random_uuid()")) @map("notification_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  message        String
+  isRead         Boolean  @map("is_read")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+ 
+  @@map("notifications")
+}
+ 
+/// Notifications & Audit
+model AuditLog {
+  logId       String   @id @default(dbgenerated("gen_random_uuid()")) @map("log_id") @db.Uuid
+  actorId     String   @map("actor_id") @db.Uuid
+  action      String   @db.VarChar
+  targetId    String?  @map("target_id") @db.Uuid // any entity
+  ruleVersion String?  @map("rule_version") @db.VarChar
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  actor       User     @relation(fields: [actorId], references: [userId], onDelete: Cascade)
+ 
+  @@map("audit_logs")
+}
+ 
+// Partial unique indexes Prisma cannot express; add them to a migration (see trellis-schema.sql):
+//   one_active_plan   ON learning_plans (learner_id) WHERE status = 'ACTIVE'
+//   one_valid_consent ON consents (learner_id) WHERE withdrawn_at IS NULL
+//   one_active_link   ON specialist_links (learner_id, specialist_id) WHERE status = 'ACTIVE'
