@@ -4,6 +4,8 @@ export const ERROR_CODES = {
   UNAUTHORIZED: "UNAUTHORIZED",
   FORBIDDEN: "FORBIDDEN",
   NOT_FOUND: "NOT_FOUND",
+  /** Signed in with Clerk, but no local account yet: the client should send the user to sign-up. */
+  ACCOUNT_NOT_REGISTERED: "ACCOUNT_NOT_REGISTERED",
   CONFLICT: "CONFLICT",
   UNPROCESSABLE: "UNPROCESSABLE",
   TOO_MANY_REQUESTS: "TOO_MANY_REQUESTS",

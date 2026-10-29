@@ -11,6 +11,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
   DATABASE_URL: z.url(),
+  CLERK_PUBLISHABLE_KEY: z.string().startsWith("pk_"),
+  CLERK_SECRET_KEY: z.string().startsWith("sk_"),
 })
 
 const parsed = envSchema.safeParse(process.env)
