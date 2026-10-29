@@ -9,7 +9,7 @@ The core architectural principle of this platform is **Backend-driven logic**. T
 This project is organized as a monorepo, cleanly separating the client and server codebases:
 
 - **/frontend**: A React application built with Vite. It features a feature-based modular structure, Tailwind CSS for styling (with child/adult themes), shadcn/ui for accessible components, and motion libraries (Framer Motion, GSAP) for reward animations.
-- **/backend**: *(Pending)* The backend server containing the REST API, the adaptive engine, and database connections.
+- **/backend**: A Node.js + Express + TypeScript REST API with a layer-based architecture (routes → controllers → services → repositories → Prisma/PostgreSQL). See [`backend/README.md`](backend/README.md).
 
 ## Architecture Highlights
 - **Client-server architecture**: The React app communicates with the backend exclusively through a centralized REST API over HTTPS.
@@ -28,4 +28,13 @@ npm run dev
 `
 
 ### Backend Development
-*(Backend setup instructions will be added once the backend architecture is established.)*
+To run the backend locally (requires PostgreSQL for database features):
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+The API runs on `http://localhost:5000`. Health check: `GET /api/v1/health`. See [`backend/README.md`](backend/README.md) for scripts, environment variables and the folder structure.
